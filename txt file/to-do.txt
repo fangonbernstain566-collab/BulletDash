@@ -4,5 +4,5 @@ Add:
 1. Background
 2. Characters
 3. Shop- popup specific meter run
-4. Logo Bullet Dash
+4. Logo Bullet Dash-DONE
 5. Background Music
