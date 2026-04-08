@@ -46,6 +46,9 @@
     <div id="shop-ui" class="menu-overlay hidden">
         <h2 style="color: #ffff44;">WEAPON SHOP</h2>
         <p>Coins: <span id="coin-display">0</span></p>
+        <h3>Guns</h3>
+        <div id="gun-buttons"></div>
+        <h3>Upgrades</h3>
         <button id="buy-triple" onclick="buyItem('triple', 50)" style="background: #44ccff;">TRIPLE SHOT (50 Coins)</button>
         <button onclick="toggleShop()" style="background: #888;">CLOSE</button>
     </div>
@@ -72,6 +75,12 @@
         const gunImg = new Image();
         gunImg.src = 'weapon_assets/thompson.png'; 
 
+        const pistolImg = new Image();
+        pistolImg.src = 'weapon_assets/Revolver1.png'; // Assume this exists or will be added
+
+        const shotgunImg = new Image();
+        shotgunImg.src = 'weapon_assets/Shotgun1.png'; // Assume this exists or will be added
+
         const coinImg = new Image();
         coinImg.src = 'coins_assets/coin.png';
 
@@ -79,9 +88,18 @@
         let gameState = "MENU"; 
         let gameFrame = 0;
         let score = 0;
-        let coins = 0;
+        let coins = 0; // Added for testing shop
         let droppedCoins = [];
         let hasTripleShot = false;
+
+        // --- GUN SYSTEM ---
+        const guns = {
+            pistol: { name: 'Pistol', cost: 0, owned: true, image: pistolImg, bulletSpeed: 15, bulletsPerShot: 1, fireRate: 10 },
+            thompson: { name: 'Thompson', cost: 100, owned: false, image: gunImg, bulletSpeed: 18, bulletsPerShot: 1, fireRate: 5 },
+            shotgun: { name: 'Shotgun', cost: 200, owned: false, image: shotgunImg, bulletSpeed: 12, bulletsPerShot: 3, fireRate: 20 }
+        };
+        let currentGun = 'pistol';
+        let lastShotFrame = 0;
 
         let diffSettings = { spawnRate: 100, baseSpeed: 5, gravity: 1.0, jumpForce: -18, bulletSpeed: 15 };
         let player = { x: 100, y: 300, w: 50, h: 50, velocityY: 0, grounded: false };
@@ -119,20 +137,61 @@
                 shopUI.classList.toggle('hidden');
                 menu.classList.toggle('hidden');
                 document.getElementById('coin-display').innerText = coins;
+                populateGunButtons();
             }
+        }
+
+        function populateGunButtons() {
+            const container = document.getElementById('gun-buttons');
+            container.innerHTML = '';
+            for (const gunKey in guns) {
+                const gun = guns[gunKey];
+                const button = document.createElement('button');
+                button.innerText = gun.owned ? `${gun.name} (EQUIP)` : `${gun.name} (${gun.cost} Coins)`;
+                button.style.background = currentGun === gunKey ? '#44ff44' : gun.owned ? '#ffff44' : '#ff8844';
+                button.addEventListener('click', () => gun.owned ? equipGun(gunKey) : buyGun(gunKey));
+                container.appendChild(button);
+            }
+        }
+
+        function buyGun(gunKey) {
+            console.log('Buying gun:', gunKey, 'Coins:', coins);
+            const gun = guns[gunKey];
+            if (coins >= gun.cost && !gun.owned) {
+                coins -= gun.cost;
+                gun.owned = true;
+                document.getElementById('coin-display').innerText = coins;
+                showToast(`🔫 ${gun.name} PURCHASED!`);
+                populateGunButtons();
+                console.log('Bought successfully');
+            } else if (gun.owned) {
+                showToast("⚠️ ALREADY OWNED!");
+                console.log('Already owned');
+            } else {
+                showToast("❌ NOT ENOUGH COINS!");
+                console.log('Not enough coins');
+            }
+        }
+
+        function equipGun(gunKey) {
+            currentGun = gunKey;
+            showToast(`🔫 EQUIPPED ${guns[gunKey].name}!`);
+            populateGunButtons();
         }
 
         // --- UPDATED BUY ITEM WITH TOAST ---
         function buyItem(item, price) {
-            if (coins >= price && !hasTripleShot) {
-                coins -= price; hasTripleShot = true;
-                document.getElementById('coin-display').innerText = coins;
-                document.getElementById('buy-triple').innerText = "OWNED";
-                showToast("🔥 TRIPLE SHOT ACTIVATED!"); 
-            } else if (hasTripleShot) { 
-                showToast("⚠️ ALREADY OWNED!"); 
-            } else { 
-                showToast("❌ NOT ENOUGH COINS!"); 
+            if (item === 'triple') {
+                if (coins >= price && !hasTripleShot) {
+                    coins -= price; hasTripleShot = true;
+                    document.getElementById('coin-display').innerText = coins;
+                    document.getElementById('buy-triple').innerText = "OWNED";
+                    showToast("🔥 TRIPLE SHOT ACTIVATED!"); 
+                } else if (hasTripleShot) { 
+                    showToast("⚠️ ALREADY OWNED!"); 
+                } else { 
+                    showToast("❌ NOT ENOUGH COINS!"); 
+                }
             }
         }
 
@@ -148,14 +207,20 @@
 
         window.addEventListener('mousedown', () => {
             if (gameState === "PLAYING") {
-                const bX = player.x + player.w + 10;
-                const bY = player.y + (player.h / 2) + 5; 
-                bullets.push({ x: bX, y: bY, w: 25, h: 6, speed: diffSettings.bulletSpeed });
-                if (hasTripleShot) {
-                    bullets.push({ x: bX, y: bY - 15, w: 25, h: 6, speed: diffSettings.bulletSpeed });
-                    bullets.push({ x: bX, y: bY + 15, w: 25, h: 6, speed: diffSettings.bulletSpeed });
+                const gun = guns[currentGun];
+                if (gameFrame - lastShotFrame >= gun.fireRate) {
+                    lastShotFrame = gameFrame;
+                    const bX = player.x + player.w + 10;
+                    const bY = player.y + (player.h / 2) + 5; 
+                    for (let i = 0; i < gun.bulletsPerShot; i++) {
+                        let yOffset = 0;
+                        if (gun.bulletsPerShot > 1) {
+                            yOffset = (i - (gun.bulletsPerShot - 1) / 2) * 10; // Spread for shotgun
+                        }
+                        bullets.push({ x: bX, y: bY + yOffset, w: 25, h: 6, speed: gun.bulletSpeed });
+                    }
+                    shootSound.currentTime = 0; shootSound.play();
                 }
-                shootSound.currentTime = 0; shootSound.play();
             }
         });
 
@@ -215,8 +280,8 @@
                 ctx.fillStyle = "#00ffcc"; ctx.fillRect(player.x, player.y, player.w, player.h);
             }
 
-            if (gunImg.complete && gunImg.width > 0) {
-                ctx.drawImage(gunImg, player.x + 35, player.y + (player.h / 2), 30, 15);
+            if (guns[currentGun].image.complete && guns[currentGun].image.width > 0) {
+                ctx.drawImage(guns[currentGun].image, player.x + 35, player.y + (player.h / 2), 30, 15);
             }
 
             droppedCoins.forEach(c => {
