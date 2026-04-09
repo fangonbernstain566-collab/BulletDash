@@ -1,3 +1,5 @@
+NOTES:
+
 title: Bullet Dash
 
 Add:
@@ -6,3 +8,9 @@ Add:
 3. Shop- popup specific meter run
 4. Logo Bullet Dash-DONE
 5. Background Music
+
+added:
+1. Slowmo skill
+2. INGAME BG scenery Underground city
+3. BG music 
+4. Start menu for Implement of the bg music Start

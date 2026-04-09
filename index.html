@@ -6,18 +6,27 @@
     <style>
         body { margin: 0; background: #111; display: flex; flex-direction: column; align-items: center; color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
         canvas { border: 4px solid #00ffcc; background: #222; margin-top: 20px; box-shadow: 0 0 30px rgba(0, 255, 204, 0.2); }
-        .menu-overlay { position: absolute; top: 120px; display: flex; flex-direction: column; gap: 10px; background: rgba(0,0,0,0.9); padding: 30px; border: 2px solid #00ffcc; border-radius: 15px; text-align: center; z-index: 10; }
+        .menu-overlay { position: absolute; top: 120px; display: flex; flex-direction: column; gap: 10px; background: rgba(0,0,0,0.9); padding: 30px; border: 2px solid #00ffcc; border-radius: 15px; text-align: center; z-index: 10; min-width: 250px; }
+        
         button { padding: 12px 25px; font-size: 20px; cursor: pointer; border: none; border-radius: 8px; font-weight: bold; transition: 0.2s; text-transform: uppercase; }
+        
+        .btn-start { background: #00ffcc; color: #000; font-size: 26px; padding: 20px; margin-bottom: 10px; }
         .btn-easy { background: #44ff44; color: #000; }
         .btn-medium { background: #ffff44; color: #000; }
         .btn-hard { background: #ff8844; color: #000; }
         .btn-extreme { background: #ff4444; color: white; box-shadow: 0 0 15px #ff4444; }
+        
+        /* Volume Controls Styling */
+        .settings-panel { margin-top: 15px; padding-top: 15px; border-top: 1px solid #444; display: flex; flex-direction: column; gap: 10px; }
+        .volume-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 14px; }
+        input[type=range] { cursor: pointer; accent-color: #00ffcc; flex-grow: 1; }
+        .btn-mute { background: #666; color: white; font-size: 14px; padding: 5px 10px; }
+
         button:hover { transform: scale(1.1); filter: brightness(1.2); }
         .hidden { display: none; }
         .btn-shop { background: #ffff44; color: #000; margin-top: 10px; border: 2px solid gold; }
+        
         #shop-ui { border-color: #ffff44; top: 80px; }
-
-        /* --- TOAST NOTIFICATION CSS --- */
         #toast-container { position: fixed; top: 20px; right: 20px; z-index: 1000; }
         .toast { 
             background: #00ffcc; color: #000; padding: 12px 20px; margin-bottom: 10px; 
@@ -32,21 +41,35 @@
 <body>
     <h1>BULLET DASH</h1>
 
+    <audio id="bgMusic" src="ss.mp3" loop></audio>
+
     <div id="toast-container"></div>
 
-    <div id="menu" class="menu-overlay">
+    <div id="start-screen" class="menu-overlay">
+        <h2 style="color: #00ffcc; margin-top: 0;">BULLET DASH</h2>
+        <button class="btn-start" onclick="initMusic()">START</button>
+    </div>
+
+    <div id="menu" class="menu-overlay hidden">
         <h2 style="color: #00ffcc; margin-top: 0;">SELECT DIFFICULTY</h2>
         <button class="btn-easy" onclick="startGame('easy')">EASY</button>
         <button class="btn-medium" onclick="startGame('medium')">MEDIUM</button>
         <button class="btn-hard" onclick="startGame('hard')">HARD</button>
         <button class="btn-extreme" onclick="startGame('extreme')">EXTREME</button>
         <button class="btn-shop" onclick="toggleShop()">OPEN SHOP</button>
+
+        <div class="settings-panel">
+            <div class="volume-row">
+                <span>🎵 Music</span>
+                <input type="range" id="volumeSlider" min="0" max="1" step="0.1" value="0.5" oninput="updateVolume(this.value)">
+            </div>
+            <button id="muteBtn" class="btn-mute" onclick="toggleMute()">MUTE</button>
+        </div>
     </div>
 
     <div id="shop-ui" class="menu-overlay hidden">
         <h2 style="color: #ffff44;">WEAPON SHOP</h2>
         <p>Coins: <span id="coin-display">0</span></p>
-        <h3>Guns</h3>
         <div id="gun-buttons"></div>
         <h3>Upgrades</h3>
         <button id="buy-triple" onclick="buyItem('triple', 50)" style="background: #44ccff;">TRIPLE SHOT (50 Coins)</button>
@@ -59,54 +82,68 @@
         const canvas = document.getElementById('game');
         const ctx = canvas.getContext('2d');
         const menu = document.getElementById('menu');
+        const startScreen = document.getElementById('start-screen');
         const shopUI = document.getElementById('shop-ui');
-        
-        // --- AUDIO ASSETS ---
+        const bgMusic = document.getElementById('bgMusic');
+        const muteBtn = document.getElementById('muteBtn');
+
+        // --- MUSIC & VOLUME CONTROL ---
+        let isMuted = false;
+        let lastVolume = 0.5;
+
+        function initMusic() {
+            bgMusic.volume = lastVolume;
+            bgMusic.play().catch(e => console.log("Music blocked:", e));
+            startScreen.classList.add('hidden');
+            menu.classList.remove('hidden');
+        }
+
+        function updateVolume(val) {
+            lastVolume = val;
+            if (!isMuted) bgMusic.volume = val;
+        }
+
+        function toggleMute() {
+            isMuted = !isMuted;
+            bgMusic.muted = isMuted;
+            muteBtn.innerText = isMuted ? "UNMUTE" : "MUTE";
+            muteBtn.style.background = isMuted ? "#ff4444" : "#666";
+        }
+
+        // --- ASSETS ---
         const shootSound = new Audio('sfx/laserShoot.wav');
         const hurtSound = new Audio('sfx/hitHurt.wav');
         const explosionSound = new Audio('sfx/explosion.wav');
         const jumpSound = new Audio('sfx/jump.wav');
         const coinSound = new Audio('sfx/pickupCoin.wav');
 
-        // --- IMAGE ASSETS ---
-        const playerImg = new Image();
-        playerImg.src = 'MrCubeHead_blue_1.png'; 
+        const playerImg = new Image(); playerImg.src = 'MrCubeHead_blue_1.png';
+        const gunImg = new Image(); gunImg.src = 'weapon_assets/thompson.png';
+        const pistolImg = new Image(); pistolImg.src = 'weapon_assets/Revolver1.png';
+        const shotgunImg = new Image(); shotgunImg.src = 'weapon_assets/Shotgun1.png';
+        const coinImg = new Image(); coinImg.src = 'coins_assets/coin.png';
 
-        const gunImg = new Image();
-        gunImg.src = 'weapon_assets/thompson.png'; 
+        // --- STATE ---
+        let gameState = "MENU";
+        let gameFrame = 0, score = 0, coins = 0, droppedCoins = [];
+        let hasTripleShot = false, groundOrbs = [], slowMoActive = false, slowMoTimer = 0;
+        const SLOWMO_DURATION = 300, SLOWMO_FACTOR = 0.25;
 
-        const pistolImg = new Image();
-        pistolImg.src = 'weapon_assets/Revolver1.png'; // Assume this exists or will be added
+        const bgLayers = [
+            { x: 0, speed: 0.2, buildings: [{ x: 50, w: 60, h: 120 }, { x: 160, w: 80, h: 160 }, { x: 290, w: 50, h: 100 }, { x: 390, w: 90, h: 180 }, { x: 530, w: 60, h: 130 }, { x: 640, w: 70, h: 150 }, { x: 750, w: 55, h: 110 }]},
+            { x: 0, speed: 0.5, buildings: [{ x: 20, w: 45, h: 80 }, { x: 120, w: 55, h: 100 }, { x: 230, w: 40, h: 70 }, { x: 340, w: 65, h: 110 }, { x: 460, w: 50, h: 90 }, { x: 580, w: 60, h: 105 }, { x: 700, w: 45, h: 85 }]}
+        ];
 
-        const shotgunImg = new Image();
-        shotgunImg.src = 'weapon_assets/Shotgun1.png'; // Assume this exists or will be added
-
-        const coinImg = new Image();
-        coinImg.src = 'coins_assets/coin.png';
-
-        // --- GAME VARIABLES ---
-        let gameState = "MENU"; 
-        let gameFrame = 0;
-        let score = 0;
-        let coins = 0; // Added for testing shop
-        let droppedCoins = [];
-        let hasTripleShot = false;
-
-        // --- GUN SYSTEM ---
         const guns = {
             pistol: { name: 'Pistol', cost: 0, owned: true, image: pistolImg, bulletSpeed: 15, bulletsPerShot: 1, fireRate: 10 },
             thompson: { name: 'Thompson', cost: 100, owned: false, image: gunImg, bulletSpeed: 18, bulletsPerShot: 1, fireRate: 5 },
             shotgun: { name: 'Shotgun', cost: 200, owned: false, image: shotgunImg, bulletSpeed: 12, bulletsPerShot: 3, fireRate: 20 }
         };
-        let currentGun = 'pistol';
-        let lastShotFrame = 0;
-
+        let currentGun = 'pistol', lastShotFrame = 0;
         let diffSettings = { spawnRate: 100, baseSpeed: 5, gravity: 1.0, jumpForce: -18, bulletSpeed: 15 };
         let player = { x: 100, y: 300, w: 50, h: 50, velocityY: 0, grounded: false };
-        let bullets = [];
-        let enemies = [];
+        let bullets = [], enemies = [];
 
-        // --- TOAST FUNCTION ---
         function showToast(msg) {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
@@ -117,18 +154,23 @@
         }
 
         function startGame(level) {
-            if (level === 'easy') { diffSettings = { spawnRate: 100, baseSpeed: 6, gravity: 1.0, jumpForce: -20, bulletSpeed: 15 }; }
-            else if (level === 'medium') { diffSettings = { spawnRate: 75, baseSpeed: 9, gravity: 1.2, jumpForce: -22, bulletSpeed: 18 }; }
-            else if (level === 'hard') { diffSettings = { spawnRate: 50, baseSpeed: 12, gravity: 1.5, jumpForce: -25, bulletSpeed: 22 }; }
-            else if (level === 'extreme') { diffSettings = { spawnRate: 30, baseSpeed: 16, gravity: 2.5, jumpForce: -35, bulletSpeed: 28 }; }
+            bgMusic.pause();
+            bgMusic.currentTime = 0;
+
+            if (level === 'easy') diffSettings = { spawnRate: 100, baseSpeed: 6, gravity: 1.0, jumpForce: -20, bulletSpeed: 15 };
+            else if (level === 'medium') diffSettings = { spawnRate: 75, baseSpeed: 9, gravity: 1.2, jumpForce: -22, bulletSpeed: 18 };
+            else if (level === 'hard') diffSettings = { spawnRate: 50, baseSpeed: 12, gravity: 1.5, jumpForce: -25, bulletSpeed: 22 };
+            else if (level === 'extreme') diffSettings = { spawnRate: 30, baseSpeed: 16, gravity: 2.5, jumpForce: -35, bulletSpeed: 28 };
+            
             resetGame();
             gameState = "PLAYING";
-            menu.classList.add('hidden'); 
+            menu.classList.add('hidden');
             shopUI.classList.add('hidden');
         }
 
         function resetGame() {
             score = 0; gameFrame = 0; bullets = []; enemies = []; droppedCoins = [];
+            groundOrbs = []; slowMoActive = false; slowMoTimer = 0; lastShotFrame = 0;
             player.y = 300; player.velocityY = 0; player.grounded = true;
         }
 
@@ -155,22 +197,14 @@
         }
 
         function buyGun(gunKey) {
-            console.log('Buying gun:', gunKey, 'Coins:', coins);
             const gun = guns[gunKey];
             if (coins >= gun.cost && !gun.owned) {
-                coins -= gun.cost;
-                gun.owned = true;
+                coins -= gun.cost; gun.owned = true;
                 document.getElementById('coin-display').innerText = coins;
                 showToast(`🔫 ${gun.name} PURCHASED!`);
                 populateGunButtons();
-                console.log('Bought successfully');
-            } else if (gun.owned) {
-                showToast("⚠️ ALREADY OWNED!");
-                console.log('Already owned');
-            } else {
-                showToast("❌ NOT ENOUGH COINS!");
-                console.log('Not enough coins');
-            }
+            } else if (gun.owned) showToast("⚠️ ALREADY OWNED!");
+            else showToast("❌ NOT ENOUGH COINS!");
         }
 
         function equipGun(gunKey) {
@@ -179,20 +213,14 @@
             populateGunButtons();
         }
 
-        // --- UPDATED BUY ITEM WITH TOAST ---
         function buyItem(item, price) {
-            if (item === 'triple') {
-                if (coins >= price && !hasTripleShot) {
-                    coins -= price; hasTripleShot = true;
-                    document.getElementById('coin-display').innerText = coins;
-                    document.getElementById('buy-triple').innerText = "OWNED";
-                    showToast("🔥 TRIPLE SHOT ACTIVATED!"); 
-                } else if (hasTripleShot) { 
-                    showToast("⚠️ ALREADY OWNED!"); 
-                } else { 
-                    showToast("❌ NOT ENOUGH COINS!"); 
-                }
-            }
+            if (item === 'triple' && coins >= price && !hasTripleShot) {
+                coins -= price; hasTripleShot = true;
+                document.getElementById('coin-display').innerText = coins;
+                document.getElementById('buy-triple').innerText = "OWNED";
+                showToast("🔥 TRIPLE SHOT ACTIVATED!");
+            } else if (hasTripleShot) showToast("⚠️ ALREADY OWNED!");
+            else showToast("❌ NOT ENOUGH COINS!");
         }
 
         window.addEventListener('keydown', e => {
@@ -201,22 +229,23 @@
                 jumpSound.currentTime = 0; jumpSound.play();
             }
             if (e.code === 'Enter' && gameState === "GAMEOVER") {
-                gameState = "MENU"; menu.classList.remove('hidden');
+                gameState = "MENU"; 
+                menu.classList.remove('hidden');
+                bgMusic.play();
             }
         });
 
-        window.addEventListener('mousedown', () => {
+        window.addEventListener('mousedown', (e) => {
+            // Check if click was on a button or slider to prevent firing weapon when interacting with menu
+            if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT') return;
+
             if (gameState === "PLAYING") {
                 const gun = guns[currentGun];
                 if (gameFrame - lastShotFrame >= gun.fireRate) {
                     lastShotFrame = gameFrame;
-                    const bX = player.x + player.w + 10;
-                    const bY = player.y + (player.h / 2) + 5; 
+                    const bX = player.x + player.w + 10, bY = player.y + (player.h / 2) + 5;
                     for (let i = 0; i < gun.bulletsPerShot; i++) {
-                        let yOffset = 0;
-                        if (gun.bulletsPerShot > 1) {
-                            yOffset = (i - (gun.bulletsPerShot - 1) / 2) * 10; // Spread for shotgun
-                        }
+                        let yOffset = (gun.bulletsPerShot > 1) ? (i - (gun.bulletsPerShot - 1) / 2) * 10 : 0;
                         bullets.push({ x: bX, y: bY + yOffset, w: 25, h: 6, speed: gun.bulletSpeed });
                     }
                     shootSound.currentTime = 0; shootSound.play();
@@ -224,73 +253,96 @@
             }
         });
 
+        function drawBackground() {
+            ctx.fillStyle = "#1a1a2e"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "rgba(255,255,255,0.6)";
+            [[80,40],[200,20],[350,60],[500,30],[650,50],[750,25],[100,80],[450,70]].forEach(([sx, sy]) => ctx.fillRect(sx, sy, 2, 2));
+            bgLayers.forEach(layer => {
+                layer.x -= layer.speed;
+                if (layer.x < -800) layer.x = 0;
+                layer.buildings.forEach(b => {
+                    const bx = ((b.x + layer.x) % 850 + 850) % 850;
+                    ctx.fillStyle = layer.speed === 0.2 ? "#2a2a4a" : "#1e3a5f";
+                    ctx.fillRect(bx, 340 - b.h, b.w, b.h);
+                    ctx.fillStyle = layer.speed === 0.2 ? "rgba(255,255,150,0.3)" : "rgba(100,200,255,0.25)";
+                    for (let wy = 340 - b.h + 10; wy < 330; wy += 20) {
+                        for (let wx = bx + 8; wx < bx + b.w - 8; wx += 15) { if (Math.random() > 0.4) ctx.fillRect(wx, wy, 6, 8); }
+                    }
+                });
+            });
+        }
+
         function update() {
             if (gameState !== "PLAYING") return;
             gameFrame++;
-            player.velocityY += diffSettings.gravity;
-            player.y += player.velocityY;
-            const groundY = 340 - player.h;
-            if (player.y > groundY) { player.y = groundY; player.velocityY = 0; player.grounded = true; }
-
-            for (let i = bullets.length - 1; i >= 0; i--) {
-                bullets[i].x += bullets[i].speed;
-                if (bullets[i].x > canvas.width) bullets.splice(i, 1);
-            }
-
-            if (gameFrame % diffSettings.spawnRate === 0) {
-                enemies.push({ x: canvas.width, y: 310, w: 30, h: 30, speed: diffSettings.baseSpeed });
-            }
-
-            for (let ci = droppedCoins.length - 1; ci >= 0; ci--) {
-                let c = droppedCoins[ci]; c.x -= c.speed; 
+            if (slowMoActive) { slowMoTimer--; if (slowMoTimer <= 0) { slowMoActive = false; showToast("⏩ BULLET TIME ENDED"); }}
+            const speedMult = slowMoActive ? SLOWMO_FACTOR : 1.0;
+            player.velocityY += diffSettings.gravity; player.y += player.velocityY;
+            if (player.y > 340 - player.h) { player.y = 340 - player.h; player.velocityY = 0; player.grounded = true; }
+            bullets.forEach((b, i) => { b.x += b.speed * speedMult; if (b.x > canvas.width) bullets.splice(i, 1); });
+            if (gameFrame % 500 === 0 && Math.random() < 0.5) groundOrbs.push({ x: canvas.width, y: 318, w: 22, h: 22, speed: diffSettings.baseSpeed });
+            groundOrbs.forEach((s, i) => {
+                s.x -= s.speed * speedMult;
+                if (player.x < s.x + s.w && player.x + player.w > s.x && player.y < s.y + s.h && player.y + player.h > s.y) {
+                    slowMoActive = true; slowMoTimer = SLOWMO_DURATION; coinSound.play(); groundOrbs.splice(i, 1); showToast("🐢 BULLET TIME!");
+                }
+                if (s.x + s.w < 0) groundOrbs.splice(i,1);
+            });
+            if (gameFrame % Math.round(diffSettings.spawnRate / speedMult) === 0) enemies.push({ x: canvas.width, y: 310, w: 30, h: 30, speed: diffSettings.baseSpeed });
+            droppedCoins.forEach((c, i) => {
+                c.x -= c.speed * speedMult;
                 if (player.x < c.x + c.w && player.x + player.w > c.x && player.y < c.y + c.h && player.y + player.h > c.y) {
-                    coins += 5; coinSound.currentTime = 0; coinSound.play();
-                    droppedCoins.splice(ci, 1); continue;
+                    coins += 5; coinSound.currentTime = 0; coinSound.play(); droppedCoins.splice(i, 1);
                 }
-                if (c.x + c.w < 0) droppedCoins.splice(ci, 1);
-            }
-
-            for (let ei = enemies.length - 1; ei >= 0; ei--) {
-                let en = enemies[ei]; en.x -= en.speed;
-                if (player.x < en.x + en.w && player.x + player.w > en.x && player.y < en.y + en.h && player.y + player.h > en.y) {
-                    hurtSound.currentTime = 0; hurtSound.play(); gameState = "GAMEOVER";
-                }
-                for (let bi = bullets.length - 1; bi >= 0; bi--) {
-                    let b = bullets[bi];
+                if (c.x + c.w < 0) droppedCoins.splice(i,1);
+            });
+            enemies.forEach((en, ei) => {
+                en.x -= en.speed * speedMult;
+                if (player.x < en.x + en.w && player.x + player.w > en.x && player.y < en.y + en.h && player.y + player.h > en.y) { hurtSound.play(); gameState = "GAMEOVER"; }
+                bullets.forEach((b, bi) => {
                     if (b.x < en.x + en.w && b.x + b.w > en.x && b.y < en.y + en.h && b.y + b.h > en.y) {
-                        explosionSound.currentTime = 0; explosionSound.play();
-                        if (Math.random() < 0.4) { droppedCoins.push({ x: en.x, y: en.y + 5, w: 25, h: 25, speed: en.speed }); }
-                        enemies.splice(ei, 1); bullets.splice(bi, 1); score += 10; break;
+                        explosionSound.play(); if (Math.random() < 0.4) droppedCoins.push({ x: en.x, y: en.y + 5, w: 25, h: 25, speed: en.speed });
+                        enemies.splice(ei, 1); bullets.splice(bi, 1); score += 10;
                     }
-                }
-                if (en && en.x + en.w < 0) enemies.splice(ei, 1);
-            }
+                });
+                if (en.x + en.w < 0) enemies.splice(ei,1);
+            });
         }
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (gameState === "PLAYING" || gameState === "GAMEOVER") drawBackground();
             if (gameState === "PLAYING") update();
             ctx.strokeStyle = "#555"; ctx.strokeRect(0, 340, 800, 2);
-
-            if (playerImg.complete && playerImg.width > 0) {
-                ctx.shadowBlur = 10; ctx.shadowColor = "#00ffcc"; 
+            
+            if (playerImg.complete) {
+                ctx.shadowBlur = 10; ctx.shadowColor = "#00ffcc";
                 ctx.drawImage(playerImg, player.x, player.y, player.w, player.h);
                 ctx.shadowBlur = 0;
-            } else {
-                ctx.fillStyle = "#00ffcc"; ctx.fillRect(player.x, player.y, player.w, player.h);
             }
-
-            if (guns[currentGun].image.complete && guns[currentGun].image.width > 0) {
-                ctx.drawImage(guns[currentGun].image, player.x + 35, player.y + (player.h / 2), 30, 15);
-            }
-
-            droppedCoins.forEach(c => {
-                if (coinImg.complete && coinImg.width > 0) { ctx.drawImage(coinImg, c.x, c.y, c.w, c.h); }
-                else { ctx.fillStyle = "gold"; ctx.fillRect(c.x, c.y, c.w, c.h); }
+            if (guns[currentGun].image.complete) ctx.drawImage(guns[currentGun].image, player.x + 35, player.y + (player.h / 2), 30, 15);
+            droppedCoins.forEach(c => ctx.drawImage(coinImg, c.x, c.y, c.w, c.h));
+            
+            groundOrbs.forEach(s => {
+                ctx.save();
+                ctx.shadowBlur = 16; ctx.shadowColor = "#00aaff";
+                ctx.fillStyle = "#00ccff";
+                ctx.beginPath(); ctx.arc(s.x + s.w/2, s.y + s.h/2, s.w/2, 0, Math.PI*2); ctx.fill();
+                ctx.restore();
             });
 
             ctx.fillStyle = "yellow"; bullets.forEach(b => ctx.fillRect(b.x, b.y, b.w, b.h));
             ctx.fillStyle = "#ff4444"; enemies.forEach(en => ctx.fillRect(en.x, en.y, en.w, en.h));
+
+            if (slowMoActive && gameState === "PLAYING") {
+                const pulse = 0.07 + 0.03 * Math.sin(gameFrame * 0.1);
+                ctx.fillStyle = `rgba(0, 140, 255, ${pulse})`;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                const barX = 20, barY = 78, barW = 160, barH = 8;
+                ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(barX - 2, barY - 2, barW + 4, barH + 4);
+                ctx.fillStyle = "#00ccff"; ctx.fillRect(barX, barY, barW * (slowMoTimer / SLOWMO_DURATION), barH);
+            }
 
             ctx.fillStyle = "white"; ctx.font = "20px Arial"; ctx.fillText("Score: " + score, 20, 30);
             ctx.fillStyle = "#ffff44"; ctx.fillText("Coins: " + coins, 20, 60);
@@ -298,10 +350,12 @@
             if (gameState === "GAMEOVER") {
                 ctx.fillStyle = "rgba(0,0,0,0.85)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
                 ctx.fillStyle = "white"; ctx.textAlign = "center"; ctx.font = "40px Arial";
-                ctx.fillText("GAME OVER", canvas.width/2, 180);
-                ctx.fillStyle = "#00ffcc"; ctx.font = "20px Arial"; ctx.fillText("Press ENTER to Restart", canvas.width/2, 280);
+                ctx.fillText("GAME OVER", canvas.width / 2, 180);
+                ctx.fillStyle = "#00ffcc"; ctx.font = "20px Arial";
+                ctx.fillText("Press ENTER to Restart", canvas.width / 2, 280);
                 ctx.textAlign = "start";
             }
+
             requestAnimationFrame(draw);
         }
         draw();
